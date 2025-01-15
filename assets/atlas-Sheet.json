@@ -1,0 +1,26 @@
+{ "frames": {
+   "atlas-Sheet.aseprite": {
+    "frame": { "x": 0, "y": 0, "w": 320, "h": 288 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 320, "h": 288 },
+    "sourceSize": { "w": 320, "h": 288 },
+    "duration": 100
+   }
+ },
+ "meta": {
+  "app": "https://www.aseprite.org/",
+  "version": "1.3.7-x64",
+  "image": "atlas-Sheet.png",
+  "format": "RGBA8888",
+  "size": { "w": 320, "h": 288 },
+  "scale": "1",
+  "frameTags": [
+  ],
+  "layers": [
+   { "name": "Layer 1", "opacity": 255, "blendMode": "normal" }
+  ],
+  "slices": [
+  ]
+ }
+}
