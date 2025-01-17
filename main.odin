@@ -8,14 +8,16 @@ import rlgl "vendor:raylib/rlgl"
 MAP_TILE_SIZE: i32 = 32
 
 Global :: struct {
-	direction : Direction
+	direction : Direction,
+	currentSelectedEntity: ^Entity,
+	mode : Mode,
 }
 
 Direction :: enum {
-	DOWN = 0,
-	LEFT = 1,
-	RIGHT = 2,
-	UP = 3,
+	UP = 0,
+	RIGHT = 1,
+	DOWN = 2,
+	LEFT = 3,
 }
 
 DIRECTION_DEGREE : []int = {
@@ -27,6 +29,7 @@ DIRECTION_DEGREE : []int = {
 
 Mode :: enum {
 	BUILD,
+	VIEW,
 }
 
 Map :: struct {
@@ -41,6 +44,7 @@ Animation :: struct {
 	animTexture:  ^rl.Texture2D,
 	currentFrame: int,
 	frameLength:  f32,
+	rotation: f32,
 }
 
 Entity :: struct {
@@ -52,9 +56,14 @@ Entity :: struct {
 	GLOBALS
 */ 
 global : Global = {}
-
+entities : [dynamic]Entity;
 // will eventually need an inventory
 // lets do some cleanup 
+
+positionToGrid :: proc(position : rl.Vector2) -> rl.Vector2 {
+
+	return {position.x * 32, position.y * 32};
+}
 
 snapToNearestGridCell :: proc(position: rl.Vector2) -> rl.Vector2 {
 	x := i32(position.x) + abs((i32(position.x) % MAP_TILE_SIZE) - MAP_TILE_SIZE)
@@ -112,9 +121,20 @@ handleInput :: proc() {
 	if rl.IsKeyPressed(rl.KeyboardKey.R) {
 		global.direction = Direction((int(global.direction) + 1) % (len(Direction)))
 	}
+	if rl.IsMouseButtonPressed(rl.MouseButton.LEFT) {
+		if global.mode == .BUILD {
+			append(&entities, global.currentSelectedEntity^);
+		}
+	}
+	if rl.IsKeyPressed(rl.KeyboardKey.Q) {
+		global.mode = .VIEW;
+	}
+	if rl.IsKeyPressed(rl.KeyboardKey.B) {
+		global.mode = .BUILD;
+	}
 }
 
-drawEntites :: proc(entities : ^[]Entity) {
+drawEntites :: proc(entities : ^[dynamic]Entity) {
 
 	// loop through entities & draw them 
 	// This will be placed entities on the grid & all their information.
@@ -125,18 +145,23 @@ drawEntites :: proc(entities : ^[]Entity) {
 	for &entity in entities^ {
 		srcRect := calculateAnimationRect(&entity); 
 
+		pos := snapToNearestGridCell(entity.position);
+
 		dstRect := rl.Rectangle {
-			x      = entity.position.x,
-			y      = entity.position.y,
+			x      = pos.x-16,
+			y      = pos.y-16,
 			width  = f32(entity.animation.animTexture.width * 2) / f32(entity.animation.numFrames),
 			height = f32(entity.animation.animTexture.height * 2),
 		}
-		rl.DrawTexturePro(entity.animation.animTexture^, srcRect, dstRect, 0, 0, rl.WHITE);
+		//fmt.println(pos);
+		rl.DrawTexturePro(entity.animation.animTexture^, srcRect, dstRect, {16, 32+16}, entity.animation.rotation, rl.WHITE);
 	}
 }
 
 
 drawCursor :: proc(mode : Mode, entity : ^Entity) {
+
+	global.currentSelectedEntity = entity;
 
 	if mode == .BUILD {
 		entity.position = snapToNearestGridCell(rl.GetMousePosition());
@@ -150,6 +175,8 @@ drawCursor :: proc(mode : Mode, entity : ^Entity) {
 
 		rotation := f32(DIRECTION_DEGREE[int(global.direction)])
 
+		entity.position = {dstRect.x, dstRect.y}
+		entity.animation.rotation = rotation;
 		// some notes ->
 		// if a single 
 		rl.DrawTexturePro(entity.animation.animTexture^, srcRect, dstRect, {16, 32+16}, rotation, rl.WHITE);
@@ -193,10 +220,14 @@ main :: proc() {
 			currentFrame = 0,
 			frameLength  = 0.1,
 		},
-		position = {0, 0}
+		position = positionToGrid({0,2})
 	}
 
-	mode : Mode = .BUILD;
+	// add the dummy entity
+	append(&entities, compactorEntity);
+	
+	global.mode = .BUILD;
+
 	for (!WindowShouldClose()) {
 		mousePosition = GetMousePosition()
 
@@ -208,7 +239,9 @@ main :: proc() {
 		ClearBackground(WHITE)
 		// draw the grid, with the current mouse pos highlighted
 		drawGrid(gameMap)
-		drawCursor(mode, &compactorEntity);
+		drawEntites(&entities);
+
+		drawCursor(global.mode, &compactorEntity);
 
 		// fps must be last call to be on top
 		DrawFPS(0, 1)
