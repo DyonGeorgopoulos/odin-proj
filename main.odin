@@ -1,3 +1,4 @@
+#+feature dynamic-literals
 package main
 
 import "core:fmt"
@@ -6,6 +7,23 @@ import rl "vendor:raylib"
 import rlgl "vendor:raylib/rlgl"
 
 MAP_TILE_SIZE: i32 = 32
+
+SPRITE_ID :: enum {
+	SPRITE_COMPACTOR,
+	SPRITE_STORAGE,
+	SPRITE_BELT,
+}
+
+SPRITE_DETAILS :: struct {
+	offset: rl.Vector2, 
+	spriteWidth: int,
+}
+
+// This could be read at runtime when loading the game from some text format
+SPRITE_MAP := map[SPRITE_ID]SPRITE_DETAILS {
+		.SPRITE_COMPACTOR = SPRITE_DETAILS({{0, 16}, 16}),
+		.SPRITE_STORAGE	 = SPRITE_DETAILS({{0, 20}, 20}),
+}
 
 Global :: struct {
 	direction : Direction,
@@ -23,7 +41,7 @@ Direction :: enum {
 DIRECTION_DEGREE : []int = {
 	0,
 	90,
-	180,
+180,
 	270,
 } 
 
@@ -50,6 +68,7 @@ Animation :: struct {
 Entity :: struct {
 	animation: Animation,
 	position:  rl.Vector2,
+	spriteId: SPRITE_ID,
 }
 
 /**
@@ -57,6 +76,7 @@ Entity :: struct {
 */ 
 global : Global = {}
 entities : [dynamic]Entity;
+belts: map[rl.Vector2]^Entity;
 // will eventually need an inventory
 // lets do some cleanup 
 
@@ -124,6 +144,10 @@ handleInput :: proc() {
 	if rl.IsMouseButtonPressed(rl.MouseButton.LEFT) {
 		if global.mode == .BUILD {
 			append(&entities, global.currentSelectedEntity^);
+			if (global.currentSelectedEntity.spriteId == .SPRITE_BELT) {
+				// Stores a belt at its vec2 position. We can now every frame lookup the belts as their direction + vec2 to see if theres a valid belt to offload to, have to check not coming towards etc. 
+				belts[global.currentSelectedEntity.position] = global.currentSelectedEntity;
+			}
 		}
 	}
 	if rl.IsKeyPressed(rl.KeyboardKey.Q) {
@@ -154,7 +178,7 @@ drawEntites :: proc(entities : ^[dynamic]Entity) {
 			height = f32(entity.animation.animTexture.height * 2),
 		}
 		//fmt.println(pos);
-		rl.DrawTexturePro(entity.animation.animTexture^, srcRect, dstRect, {16, 32+16}, entity.animation.rotation, rl.WHITE);
+		rl.DrawTexturePro(entity.animation.animTexture^, srcRect, dstRect, {16, 16}, entity.animation.rotation, rl.WHITE);
 	}
 }
 
@@ -178,33 +202,37 @@ drawCursor :: proc(mode : Mode, entity : ^Entity) {
 		entity.position = {dstRect.x, dstRect.y}
 		entity.animation.rotation = rotation;
 		// some notes ->
-		// if a single 
-		rl.DrawTexturePro(entity.animation.animTexture^, srcRect, dstRect, {16, 32+16}, rotation, rl.WHITE);
+		// if a single tile then the offest is {16, 16}
+		// if 16x32 up, then its {16, 32+16}
+		rl.DrawTexturePro(entity.animation.animTexture^, srcRect, dstRect, {16, 16}, rotation, rl.WHITE);
 	}
 
 }
 
 main :: proc() {
 	using rl
-	InitWindow(800, 450, "BELT")
+	
+	defer delete(belts);
+	defer delete(SPRITE_MAP);
+
+	InitWindow(800, 450, "BELT");
 	// HideCursor()
-	gameMap: Map = {}
+	gameMap: Map = {};
 
-	gameMap.tilesX = 30
-	gameMap.tilesY = 20
-	camera: Camera2D = {}
-	SetTargetFPS(144)
+	gameMap.tilesX = 30;
+	gameMap.tilesY = 20;
+	camera: Camera2D = {};
+SetTargetFPS(144);
 
-	mousePosition: Vector2 = {-100, 100}
+	mousePosition: Vector2 = {-100, 100};
 
 
-	texture: Texture2D = LoadTexture("assets/atlas.png")
-	compactor: Texture2D = LoadTexture("assets/compactor_idle.png")
+	texture: Texture2D = LoadTexture("assets/atlas.png");
+	compactor: Texture2D = LoadTexture("assets/compactor_idle.png");
 	storage: Texture2D = LoadTexture("assets/tunnel-in_idle.png");
-
-	/*
+	conveyor: Texture2D = LoadTexture("assets/conveyor_idle.png");
+	/* 
 	* TODO:
-	*	- Implement sprites
 	*	- Rotate camera to give a plane look
 	* 	- Implement grid based memory to remember tiles that have been affected
 	* 	- Some sort of entity spawn system to place on grid
@@ -223,11 +251,25 @@ main :: proc() {
 		position = positionToGrid({0,2})
 	}
 
+	beltEntity : Entity = { 
+		animation = {
+			numFrames = int(conveyor.width / 16),
+			frameTimer = 0,
+			animTexture = &conveyor,
+			offset = 0,
+			currentFrame = 0,
+			frameLength = 0.1,	
+		},
+		spriteId = .SPRITE_BELT,
+	}
+
 	// add the dummy entity
 	append(&entities, compactorEntity);
 	
 	global.mode = .BUILD;
 
+	// Some general initalisation notes
+	// We could initialise entities as we need them, 
 	for (!WindowShouldClose()) {
 		mousePosition = GetMousePosition()
 
@@ -241,11 +283,10 @@ main :: proc() {
 		drawGrid(gameMap)
 		drawEntites(&entities);
 
-		drawCursor(global.mode, &compactorEntity);
-
+		drawCursor(global.mode, &beltEntity);
 		// fps must be last call to be on top
 		DrawFPS(0, 1)
-
+		
 		EndDrawing()
 		EndMode2D()
 	}
