@@ -3,6 +3,7 @@ package main
 
 import "core:fmt"
 import "core:math"
+import "base:intrinsics"
 import rl "vendor:raylib"
 import rlgl "vendor:raylib/rlgl"
 
@@ -32,16 +33,16 @@ Global :: struct {
 }
 
 Direction :: enum {
-	UP = 0,
-	RIGHT = 1,
-	DOWN = 2,
-	LEFT = 3,
+	LEFT = 0,
+	UP = 1,
+	RIGHT = 2,
+	DOWN = 3,
 }
 
 DIRECTION_DEGREE : []int = {
 	0,
 	90,
-180,
+	180,
 	270,
 } 
 
@@ -69,14 +70,24 @@ Entity :: struct {
 	animation: Animation,
 	position:  rl.Vector2,
 	spriteId: SPRITE_ID,
+	conveyor : ^Conveyor,
+	direction : Direction,
+}
+
+BeltItem :: struct {
+	item : ^Entity,
+}
+
+Conveyor :: struct {
+	inventory : ^BeltItem,
 }
 
 /**
 	GLOBALS
 */ 
 global : Global = {}
-entities : [dynamic]Entity;
-belts: map[rl.Vector2]^Entity;
+entities : map[rl.Vector2]Entity;
+conveyors: map[rl.Vector2]^Entity;
 // will eventually need an inventory
 // lets do some cleanup 
 
@@ -143,10 +154,19 @@ handleInput :: proc() {
 	}
 	if rl.IsMouseButtonPressed(rl.MouseButton.LEFT) {
 		if global.mode == .BUILD {
-			append(&entities, global.currentSelectedEntity^);
-			if (global.currentSelectedEntity.spriteId == .SPRITE_BELT) {
-				// Stores a belt at its vec2 position. We can now every frame lookup the belts as their direction + vec2 to see if theres a valid belt to offload to, have to check not coming towards etc. 
-				belts[global.currentSelectedEntity.position] = global.currentSelectedEntity;
+			// need a better way to search the entities array. Probably a hasmap on coords again.
+			if !(global.currentSelectedEntity.position in entities) {
+				global.currentSelectedEntity.direction = global.direction;
+				tmpEntity := global.currentSelectedEntity^; 
+				tmpPosition := global.currentSelectedEntity.position;
+				entities[tmpPosition] = tmpEntity;
+				if (global.currentSelectedEntity.spriteId == .SPRITE_BELT) {
+					// Stores a belt at its vec2 position. We can now every frame lookup the belts as their direction + vec2 to see if theres a valid belt to offload to, have to check not coming towards etc. 
+					tmpVec := tmpPosition;
+					tmpPtr : Entity;
+					intrinsics.mem_copy(&tmpPtr, &tmpEntity, size_of(Entity));
+					conveyors[tmpVec] = &tmpPtr;
+				}
 			}
 		}
 	}
@@ -158,7 +178,7 @@ handleInput :: proc() {
 	}
 }
 
-drawEntites :: proc(entities : ^[dynamic]Entity) {
+drawEntites :: proc(entities : ^map[rl.Vector2]Entity) {
 
 	// loop through entities & draw them 
 	// This will be placed entities on the grid & all their information.
@@ -166,7 +186,7 @@ drawEntites :: proc(entities : ^[dynamic]Entity) {
 	// for each entity in entities: 
 	// 		calculate animation rect
 	// 		draw src + dst
-	for &entity in entities^ {
+	for tile, &entity in entities {
 		srcRect := calculateAnimationRect(&entity); 
 
 		pos := snapToNearestGridCell(entity.position);
@@ -212,7 +232,7 @@ drawCursor :: proc(mode : Mode, entity : ^Entity) {
 main :: proc() {
 	using rl
 	
-	defer delete(belts);
+	defer delete(conveyors);
 	defer delete(SPRITE_MAP);
 
 	InitWindow(800, 450, "BELT");
@@ -251,6 +271,11 @@ SetTargetFPS(144);
 		position = positionToGrid({0,2})
 	}
 
+	item : BeltItem = {};
+	conv : Conveyor = {
+		inventory = &item
+	};
+
 	beltEntity : Entity = { 
 		animation = {
 			numFrames = int(conveyor.width / 16),
@@ -261,10 +286,11 @@ SetTargetFPS(144);
 			frameLength = 0.1,	
 		},
 		spriteId = .SPRITE_BELT,
+		conveyor = &conv, 
 	}
 
 	// add the dummy entity
-	append(&entities, compactorEntity);
+	entities[compactorEntity.position] = compactorEntity;
 	
 	global.mode = .BUILD;
 
@@ -275,6 +301,7 @@ SetTargetFPS(144);
 
 		// logic
 		handleInput();
+		conveyorTick();
 
 		BeginMode2D(camera)
 		BeginDrawing()
