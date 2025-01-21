@@ -38,19 +38,17 @@ conveyorTick :: proc() {
         case .RIGHT, .DOWN:
           checkDirVec = beltPos + dir;
       }
+
+      if checkDirVec in conveyors {
+        fmt.println("I see the path from: ")
+        fmt.println(belt)
+        fmt.println("TO: ");
+        fmt.println(conveyors[checkDirVec]);
+      }
       // also need to check that it's not opposite
       // TODO: Fix the check for -> right to UP 
       // same for left to down -> ther/es some weird vector math, need to run a debugger
-      fmt.println(checkDirVec)
-      if checkDirVec in conveyors {
-        // we must offload the item
-        fmt.println("i see a belt in front of me")
-      }
-
-      if belt.conveyor.inventory.item != nil {
-        // we have to sort out offloading the item
-
-      }
+   
     }
     fmt.println("end func")
 }

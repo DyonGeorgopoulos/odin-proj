@@ -108,7 +108,7 @@ drawGrid :: proc(gameMap: Map) {
 	for y: i32 = 0; y < gameMap.tilesY; y += 1 {
 		for x: i32 = 0; x < gameMap.tilesX; x += 1 {
 			DrawRectangle(x * MAP_TILE_SIZE, y * MAP_TILE_SIZE, MAP_TILE_SIZE, MAP_TILE_SIZE, BLUE)
-
+			DrawText((fmt.ctprint(x*MAP_TILE_SIZE, ",\n", y*MAP_TILE_SIZE)), x * MAP_TILE_SIZE, y * MAP_TILE_SIZE+8, 4, rl.WHITE)
 			// draw borders
 			DrawRectangleLines(
 				x * MAP_TILE_SIZE,
@@ -156,16 +156,21 @@ handleInput :: proc() {
 		if global.mode == .BUILD {
 			// need a better way to search the entities array. Probably a hasmap on coords again.
 			if !(global.currentSelectedEntity.position in entities) {
+				// set the entites direction to the global direction
 				global.currentSelectedEntity.direction = global.direction;
-				tmpEntity := global.currentSelectedEntity^; 
+
+				// copy over the entity to the entities array
+				tmpEntity : Entity;
+				intrinsics.mem_copy(&tmpEntity, global.currentSelectedEntity, size_of(Entity))
+
+				// set the key + value pair in the entities array
 				tmpPosition := global.currentSelectedEntity.position;
 				entities[tmpPosition] = tmpEntity;
+
 				if (global.currentSelectedEntity.spriteId == .SPRITE_BELT) {
-					// Stores a belt at its vec2 position. We can now every frame lookup the belts as their direction + vec2 to see if theres a valid belt to offload to, have to check not coming towards etc. 
-					tmpVec := tmpPosition;
-					tmpPtr : Entity;
-					intrinsics.mem_copy(&tmpPtr, &tmpEntity, size_of(Entity));
-					conveyors[tmpVec] = &tmpPtr;
+					// if we are placing a belt lets update the conveyors belt
+					conveyors[tmpPosition] = &entities[tmpPosition];
+					// TODO: On belt placed func
 				}
 			}
 		}
@@ -290,6 +295,9 @@ SetTargetFPS(144);
 	}
 
 	// add the dummy entity
+	entities = make(map[rl.Vector2]Entity);
+	defer delete(entities);
+	
 	entities[compactorEntity.position] = compactorEntity;
 	
 	global.mode = .BUILD;
