@@ -48,6 +48,7 @@ DIRECTION_DEGREE : []int = {
 
 Mode :: enum {
 	BUILD,
+	DEBUG,
 	VIEW,
 }
 
@@ -70,16 +71,12 @@ Entity :: struct {
 	animation: Animation,
 	position:  rl.Vector2,
 	spriteId: SPRITE_ID,
-	conveyor : ^Conveyor,
 	direction : Direction,
-}
-
-BeltItem :: struct {
-	item : ^Entity,
+	target : ^Entity,
 }
 
 Conveyor :: struct {
-	inventory : ^BeltItem,
+	using entity : Entity,
 }
 
 /**
@@ -102,13 +99,25 @@ snapToNearestGridCell :: proc(position: rl.Vector2) -> rl.Vector2 {
 	return {f32(x), f32(y)}
 }
 
+drawGridPositions :: proc(gameMap: Map) {
+	using rl;
+	if global.mode == .DEBUG {
+
+		for y: i32 = 0; y < gameMap.tilesY; y += 1 {
+			for x: i32 = 0; x < gameMap.tilesX; x += 1 {
+				DrawText((fmt.ctprint(x*MAP_TILE_SIZE+16, ",\n", y*MAP_TILE_SIZE+16)), x * MAP_TILE_SIZE, y * MAP_TILE_SIZE+8, 4, rl.WHITE)
+			}
+		}
+		drawConveyorPath();
+	}
+}
+
 drawGrid :: proc(gameMap: Map) {
 	using rl
 
 	for y: i32 = 0; y < gameMap.tilesY; y += 1 {
 		for x: i32 = 0; x < gameMap.tilesX; x += 1 {
 			DrawRectangle(x * MAP_TILE_SIZE, y * MAP_TILE_SIZE, MAP_TILE_SIZE, MAP_TILE_SIZE, BLUE)
-			DrawText((fmt.ctprint(x*MAP_TILE_SIZE, ",\n", y*MAP_TILE_SIZE)), x * MAP_TILE_SIZE, y * MAP_TILE_SIZE+8, 4, rl.WHITE)
 			// draw borders
 			DrawRectangleLines(
 				x * MAP_TILE_SIZE,
@@ -152,8 +161,12 @@ handleInput :: proc() {
 	if rl.IsKeyPressed(rl.KeyboardKey.R) {
 		global.direction = Direction((int(global.direction) + 1) % (len(Direction)))
 	}
+	if rl.IsKeyPressed(rl.KeyboardKey.D) {
+		global.mode = .DEBUG
+	}
+
 	if rl.IsMouseButtonPressed(rl.MouseButton.LEFT) {
-		if global.mode == .BUILD {
+		if global.mode != .VIEW {
 			// need a better way to search the entities array. Probably a hasmap on coords again.
 			if !(global.currentSelectedEntity.position in entities) {
 				// set the entites direction to the global direction
@@ -169,7 +182,8 @@ handleInput :: proc() {
 
 				if (global.currentSelectedEntity.spriteId == .SPRITE_BELT) {
 					// if we are placing a belt lets update the conveyors belt
-					conveyors[tmpPosition] = &entities[tmpPosition];
+					conveyors[tmpPosition] = &(entities[tmpPosition]);
+					onConveyorAdded(conveyors[tmpPosition]);
 					// TODO: On belt placed func
 				}
 			}
@@ -212,7 +226,7 @@ drawCursor :: proc(mode : Mode, entity : ^Entity) {
 
 	global.currentSelectedEntity = entity;
 
-	if mode == .BUILD {
+	if mode != .VIEW {
 		entity.position = snapToNearestGridCell(rl.GetMousePosition());
 		srcRect := calculateAnimationRect(entity);
 		dstRect := rl.Rectangle {
@@ -237,6 +251,7 @@ drawCursor :: proc(mode : Mode, entity : ^Entity) {
 main :: proc() {
 	using rl
 	
+	conveyors = make(map[rl.Vector2]^Entity);
 	defer delete(conveyors);
 	defer delete(SPRITE_MAP);
 
@@ -276,11 +291,6 @@ SetTargetFPS(144);
 		position = positionToGrid({0,2})
 	}
 
-	item : BeltItem = {};
-	conv : Conveyor = {
-		inventory = &item
-	};
-
 	beltEntity : Entity = { 
 		animation = {
 			numFrames = int(conveyor.width / 16),
@@ -291,7 +301,6 @@ SetTargetFPS(144);
 			frameLength = 0.1,	
 		},
 		spriteId = .SPRITE_BELT,
-		conveyor = &conv, 
 	}
 
 	// add the dummy entity
@@ -309,7 +318,6 @@ SetTargetFPS(144);
 
 		// logic
 		handleInput();
-		conveyorTick();
 
 		BeginMode2D(camera)
 		BeginDrawing()
@@ -318,6 +326,7 @@ SetTargetFPS(144);
 		drawGrid(gameMap)
 		drawEntites(&entities);
 
+		drawGridPositions(gameMap);
 		drawCursor(global.mode, &beltEntity);
 		// fps must be last call to be on top
 		DrawFPS(0, 1)
