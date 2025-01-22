@@ -39,13 +39,14 @@ onConveyorAdded :: proc(conveyor : ^Entity) {
         checkDirVec = conveyor.position + dir;
     }
 
-    toTile := conveyors[checkDirVec];
-    if toTile != nil {
-      conveyor.target = toTile;
+    toTile, ok := conveyors[fmt.tprint(checkDirVec)];
+    if ok {
+      conveyor.target = fmt.tprint(toTile.position);
+      conveyors[fmt.tprint(conveyor.position)] = conveyor
     }
     
     // now tell the neighbours to update their totile, and check if their direction points towards the new tile
-    updateNeighbour(conveyor);
+    updateNeighbour(fmt.tprint(conveyor.position));
     fmt.println("end func")
     
     for c, cObj in conveyors {
@@ -56,9 +57,10 @@ onConveyorAdded :: proc(conveyor : ^Entity) {
 
 }
 
-updateNeighbour :: proc(from : ^Entity) {
+updateNeighbour :: proc(from : string) {
   for direction in Direction {
-    updateNeighbourFromDir(from, direction);
+    // maybe do the lookup of the string on the conveyor every time. 
+    updateNeighbourFromDir(conveyors[from], direction);
   }
 }
 
@@ -77,7 +79,7 @@ updateNeighbourFromDir :: proc(from : ^Entity, dir : Direction) {
         checkDirVec = from.position + dirVec;
       }
 
-    neighbour := conveyors[checkDirVec];
+    neighbour, ok := conveyors[fmt.tprint(checkDirVec)];
 
     comparison_dir : Direction
     switch (dir) {
@@ -91,8 +93,9 @@ updateNeighbourFromDir :: proc(from : ^Entity, dir : Direction) {
         comparison_dir = .DOWN;
     }
 
-    if neighbour != nil && neighbour.spriteId == .SPRITE_BELT && neighbour.direction == comparison_dir {
-      neighbour.target = from;
+    if ok && neighbour.spriteId == .SPRITE_BELT && neighbour.direction == comparison_dir {
+      neighbour.target = fmt.tprint(from.position);
+      conveyors[fmt.tprint(neighbour.position)] = neighbour
     }
 }
 
@@ -104,8 +107,10 @@ drawConveyorPath :: proc() {
   // getting a segfault on 2 downs???
   for cPos, conveyor in conveyors {
     // draw a line from to to
-    if (conveyor.target != nil) {
-      rl.DrawLine(i32(conveyor.position.x), i32(conveyor.position.y), i32(conveyor.target.position.x), i32(conveyor.target.position.y), rl.GREEN);
+    // lookup target
+    target, ok := conveyors[conveyor.target]
+    if ok {
+      rl.DrawLine(i32(conveyor.position.x), i32(conveyor.position.y), i32(target.position.x), i32(target.position.y), rl.GREEN);
     }
   }
 }

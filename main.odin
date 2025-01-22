@@ -72,7 +72,7 @@ Entity :: struct {
 	position:  rl.Vector2,
 	spriteId: SPRITE_ID,
 	direction : Direction,
-	target : ^Entity,
+	target : string,
 }
 
 Conveyor :: struct {
@@ -83,8 +83,8 @@ Conveyor :: struct {
 	GLOBALS
 */ 
 global : Global = {}
-entities : map[rl.Vector2]Entity;
-conveyors: map[rl.Vector2]^Entity;
+entities : map[string]Entity;
+conveyors: map[string]^Entity;
 // will eventually need an inventory
 // lets do some cleanup 
 
@@ -168,22 +168,25 @@ handleInput :: proc() {
 	if rl.IsMouseButtonPressed(rl.MouseButton.LEFT) {
 		if global.mode != .VIEW {
 			// need a better way to search the entities array. Probably a hasmap on coords again.
-			if !(global.currentSelectedEntity.position in entities) {
+			// lookup element in entities
+			elem, ok := entities[fmt.tprint(global.currentSelectedEntity.position)];
+			if !ok {
 				// set the entites direction to the global direction
 				global.currentSelectedEntity.direction = global.direction;
 
 				// copy over the entity to the entities array
-				tmpEntity : Entity;
+				tmpEntity : Entity = {};
 				intrinsics.mem_copy(&tmpEntity, global.currentSelectedEntity, size_of(Entity))
 
 				// set the key + value pair in the entities array
-				tmpPosition := global.currentSelectedEntity.position;
-				entities[tmpPosition] = tmpEntity;
+				tmpPosition : rl.Vector2;
+				intrinsics.mem_copy(&tmpPosition, &global.currentSelectedEntity.position, size_of(rl.Vector2));
+				entities[fmt.tprint(tmpPosition)] = tmpEntity;
 
 				if (global.currentSelectedEntity.spriteId == .SPRITE_BELT) {
 					// if we are placing a belt lets update the conveyors belt
-					conveyors[tmpPosition] = &(entities[tmpPosition]);
-					onConveyorAdded(conveyors[tmpPosition]);
+					conveyors[fmt.tprint(tmpPosition)] = &(entities[fmt.tprint(tmpPosition)]);
+					onConveyorAdded(conveyors[fmt.tprint(tmpPosition)]);
 					// TODO: On belt placed func
 				}
 			}
@@ -197,7 +200,7 @@ handleInput :: proc() {
 	}
 }
 
-drawEntites :: proc(entities : ^map[rl.Vector2]Entity) {
+drawEntites :: proc(entities : ^map[string]Entity) {
 
 	// loop through entities & draw them 
 	// This will be placed entities on the grid & all their information.
@@ -251,7 +254,7 @@ drawCursor :: proc(mode : Mode, entity : ^Entity) {
 main :: proc() {
 	using rl
 	
-	conveyors = make(map[rl.Vector2]^Entity);
+	conveyors = make(map[string]^Entity);
 	defer delete(conveyors);
 	defer delete(SPRITE_MAP);
 
@@ -301,13 +304,14 @@ SetTargetFPS(144);
 			frameLength = 0.1,	
 		},
 		spriteId = .SPRITE_BELT,
+		target = {},
 	}
 
 	// add the dummy entity
-	entities = make(map[rl.Vector2]Entity);
+	entities = make(map[string]Entity);
 	defer delete(entities);
 	
-	entities[compactorEntity.position] = compactorEntity;
+	// entities[compactorEntity.position] = compactorEntity;
 	
 	global.mode = .BUILD;
 
